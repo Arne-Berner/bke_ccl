@@ -1,9 +1,7 @@
-use std::iter;
-use flume::bounded;
 use bke_ccl::*;
+use flume::bounded;
 use pollster::FutureExt;
-use image::ImageBuffer;
-
+use std::iter;
 
 pub struct WGPUState {
     texture_bundle: texture::TextureUInt,
@@ -13,7 +11,6 @@ pub struct WGPUState {
 
 impl WGPUState {
     async fn new() -> anyhow::Result<WGPUState> {
-
         // The instance is a handle to our GPU
         // BackendBit::PRIMARY => Vulkan + Metal + DX12 + Browser WebGPU
         let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor {
@@ -26,10 +23,7 @@ impl WGPUState {
             .await
             .unwrap();
 
-        let (device, queue) = adapter
-            .request_device(&Default::default())
-            .await
-            .unwrap();
+        let (device, queue) = adapter.request_device(&Default::default()).await.unwrap();
 
         let image_bytes = include_bytes!("./tobacco.png");
         let texture_bundle =
@@ -42,8 +36,7 @@ impl WGPUState {
         })
     }
 
-
-    fn get_num_bytes_storage(&mut self) -> anyhow::Result<u64> {
+    fn get_num_bytes_storage(&self) -> anyhow::Result<u64> {
         let texture_size = self.texture_bundle.texture.size();
         let width = texture_size.width;
         let height = texture_size.height;
@@ -54,8 +47,9 @@ impl WGPUState {
         Ok(num_bytes_storage)
     }
 
-    async fn compute(&mut self) -> anyhow::Result<()> {
-        let mut encoder = self.device
+    async fn compute(&self) -> anyhow::Result<()> {
+        let mut encoder = self
+            .device
             .create_command_encoder(&wgpu::CommandEncoderDescriptor {
                 label: Some("Render Encoder"),
             });
@@ -69,14 +63,12 @@ impl WGPUState {
 
     async fn check_if_correct(&self, output_buffer: &wgpu::Buffer ) -> anyhow::Result<()> {
         let num_bytes_storage = self.get_num_bytes_storage().unwrap();
-        // I get the buffer from here
         let temp_buffer = self.device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("temp"),
             size: num_bytes_storage,
             usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
             mapped_at_creation: false,
         });
-
 
         let mut encoder = self.device.create_command_encoder(&Default::default());
 
@@ -121,18 +113,28 @@ impl WGPUState {
             ];
             println!("output_data:{:?}", output_data);
             assert_eq!(output_data, expected);
+            /*
+            // probably need to use from_fn to get some image that works. But Arrays should be fine
+            let wgpu::Extent3d {width, height, ..} = self.texture_bundle.texture.size();
+            if let Some(image_buffer) = ImageBuffer::<image::Luma<u32>, _>::from_raw(width, height, output_data) {
+
+            Save the image as a PNG (or another format, e.g., JPEG)
+            image_buffer.convert::<image::Rgba32FImage>()
+             // image_buffer.save("output")?;
+             // image_buffer.("output_data")?;
+            }
+            */
         }
 
         // We need to unmap the buffer to be able to use it again
         temp_buffer.unmap();
-
         Ok(())
     }
 }
 
 fn main() -> anyhow::Result<()> {
     env_logger::init();
-    let mut state = WGPUState::new().block_on()?;
+    let state = WGPUState::new().block_on()?;
     state.compute().block_on()?;
 
     Ok(())
