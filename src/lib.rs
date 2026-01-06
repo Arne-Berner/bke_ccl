@@ -41,6 +41,7 @@ impl CCLState {
         });
 
         let num_pixels = width as u64 * height as u64;
+        // every pixel is now rgba<u8> so 32bit
         let num_bytes_storage = num_pixels
             .checked_mul(4)
             .expect("The image was too big to create a storage buffer");
