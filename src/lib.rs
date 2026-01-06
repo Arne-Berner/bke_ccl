@@ -458,8 +458,8 @@ impl CCLState {
             compute_pass.set_pipeline(&self.label_to_rgba_pipeline);
             compute_pass.set_bind_group(0, &self.label_to_rgba_bind_group, &[]);
             compute_pass.dispatch_workgroups(
-                self.width, 
-                self.height, 
+                self.width/8 + self.width % 8, 
+                self.height/8 + self.width % 8, 
                 1
             );
         }
