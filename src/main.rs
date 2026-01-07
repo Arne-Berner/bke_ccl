@@ -2,6 +2,7 @@ use bke_ccl::*;
 use flume::bounded;
 use pollster::FutureExt;
 use std::iter;
+use image::{ImageBuffer, RgbaImage};
 
 pub struct WGPUState {
     texture_bundle: texture::TextureUInt,
@@ -25,7 +26,7 @@ impl WGPUState {
 
         let (device, queue) = adapter.request_device(&Default::default()).await.unwrap();
 
-        let image_bytes = include_bytes!("./tobacco.png");
+        let image_bytes = include_bytes!("./test.png");
         let texture_bundle =
             texture::TextureUInt::from_bytes(&device, &queue, image_bytes, "in_texture").unwrap();
 
@@ -56,12 +57,12 @@ impl WGPUState {
         let ccl = CCLState::new(&self.device, &self.queue, &self.texture_bundle).unwrap();
         let output_buffer = ccl.compute(&mut encoder)?;
         self.queue.submit(iter::once(encoder.finish()));
-        self.check_if_correct(&output_buffer).await?;
+        self.check_colors(&output_buffer).await?;
 
         Ok(())
     }
 
-    async fn check_if_correct(&self, output_buffer: &wgpu::Buffer ) -> anyhow::Result<()> {
+    async fn check_colors(&self, output_buffer: &wgpu::Buffer ) -> anyhow::Result<()> {
         let num_bytes_storage = self.get_num_bytes_storage().unwrap();
         let temp_buffer = self.device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("temp"),
@@ -98,32 +99,26 @@ impl WGPUState {
 
             // Now we have the data on the CPU we can do what ever we want to with it
             let output_data = bytemuck::cast_slice::<_, u32>(&output_buffer_view);
-            let expected: [u32; 256] = [
-                1, 0, 3, 0, 5, 0, 7, 0, 9, 0, 11, 0, 13, 0, 15, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-                0, 0, 0, 0, 0, 33, 0, 35, 0, 37, 0, 39, 0, 41, 0, 43, 0, 45, 0, 47, 0, 0, 0, 0, 0,
-                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 65, 0, 67, 0, 69, 0, 71, 0, 73, 0, 75, 0, 77,
-                0, 79, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 97, 0, 99, 0, 101, 0,
-                103, 0, 105, 0, 107, 0, 109, 0, 111, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-                0, 0, 129, 0, 131, 0, 133, 0, 135, 0, 137, 0, 139, 0, 141, 0, 143, 0, 0, 0, 0, 0,
-                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 161, 0, 163, 0, 165, 0, 167, 0, 169, 0, 171, 0,
-                173, 0, 175, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 193, 0, 195, 0,
-                197, 0, 199, 0, 201, 0, 203, 0, 205, 0, 207, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-                0, 0, 0, 0, 225, 0, 227, 0, 229, 0, 231, 0, 233, 0, 235, 0, 237, 0, 239, 0, 0, 0,
-                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-            ];
-            println!("output_data:{:?}", output_data);
-            assert_eq!(output_data, expected);
-            /*
-            // probably need to use from_fn to get some image that works. But Arrays should be fine
-            let wgpu::Extent3d {width, height, ..} = self.texture_bundle.texture.size();
-            if let Some(image_buffer) = ImageBuffer::<image::Luma<u32>, _>::from_raw(width, height, output_data) {
 
-            Save the image as a PNG (or another format, e.g., JPEG)
-            image_buffer.convert::<image::Rgba32FImage>()
-             // image_buffer.save("output")?;
-             // image_buffer.("output_data")?;
+            // using f64 to accomodate the bigger u32 range
+            let normalized = 255.0 / self.texture_bundle.texture.size().width as f64 / self.texture_bundle.texture.size().height as f64;
+            let mut rgba_data = Vec::with_capacity(output_data.len() * 4);
+            for &label in output_data {
+                // grey scale
+                let r = (label as f64 * normalized) as u8;
+                let g = (label as f64 * normalized) as u8;
+                let b = (label as f64 * normalized) as u8;
+                let a = 255u8; 
+
+                rgba_data.push(r); 
+                rgba_data.push(g);
+                rgba_data.push(b);
+                rgba_data.push(a);
             }
-            */
+            let img: RgbaImage = ImageBuffer::from_raw(256, 256, rgba_data).unwrap();
+
+            // Save the image
+            img.save("output.png")?;
         }
 
         // We need to unmap the buffer to be able to use it again
