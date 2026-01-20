@@ -26,7 +26,7 @@ impl WGPUState {
 
         let (device, queue) = adapter.request_device(&Default::default()).await.unwrap();
 
-        let image_bytes = include_bytes!("./test.png");
+        let image_bytes = include_bytes!("./16x16test.png");
         let texture_bundle =
             texture::TextureUInt::from_bytes(&device, &queue, image_bytes, "in_texture").unwrap();
 

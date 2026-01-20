@@ -29,6 +29,7 @@ fn final_labeling(
 
     if row < img_row && col < img_col {
 
+        // the labels start at 0 and become with this
         let label = labels[labels_idx] + 1u;
         if util::HasBits(info, util::A){
             labels[labels_idx] = label;

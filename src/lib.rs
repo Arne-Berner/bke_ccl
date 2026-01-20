@@ -29,7 +29,15 @@ pub struct CCLState {
 }
 
 impl CCLState {
+    // TODO this does not need to be in compute() in main
     pub fn new(device: &wgpu::Device, queue: &wgpu::Queue, texture_bundle: &texture::TextureUInt) -> anyhow::Result<CCLState> {
+        // TODO sort by function and not by bindgroup/layout/pipeline
+        // TODO dims+buffer need to be created here for the bindgroupentries once. Changes can be
+        // done later on.
+        // TODO the dims also need to be in "new_image" or something
+        // TODO the same goes for the label_buffer
+        // TODO check if the info_buffer can have the same size as label_buffer
+        // TODO replace texture_bundle with the array
         let texture_size = texture_bundle.texture.size();
         let width = texture_size.width;
         let height = texture_size.height;
@@ -62,6 +70,7 @@ impl CCLState {
         encoder.clear_buffer(&labels_buffer, 0, None);
         queue.submit(std::iter::once(encoder.finish()));
 
+        // TODO rewrite init
         let init_bind_group_layout =
             device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
                 label: Some("init_bind_group_layout"),
@@ -99,6 +108,7 @@ impl CCLState {
                 ],
             });
 
+        // TODO rewrite compress
         let compress_bind_group_layout =
             device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
                 label: Some("compress_bind_group_layout"),
@@ -127,6 +137,7 @@ impl CCLState {
                 ],
             });
 
+        // TODO rewrite merge
         let merge_bind_group_layout =
             device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
                 label: Some("merge_bind_group_layout"),
@@ -165,9 +176,13 @@ impl CCLState {
                 ],
             });
 
+        // TODO is this needed or should this be its own lib?
+        // image takes an array anyway, this is only needed, if I render it to screen
+        // So this could be used for testing only.
+        // this could be a simple own lib and does not need to be part of this
         let label_to_rgba_bind_group_layout =
             device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-                label: Some("merge_bind_group_layout"),
+                label: Some("label_to_rgba_bind_group_layout"),
                 entries: &[
                     wgpu::BindGroupLayoutEntry {
                         binding: 0,
@@ -408,6 +423,10 @@ impl CCLState {
         })
     }
 
+    //TODO create a "replace_image" function or similar -> takes array + dims -> sideeffect:
+    // replaces buffer -> return buffer reference instead? 
+    
+    // TODO compute works as is?
     pub fn compute(self, encoder: &mut wgpu::CommandEncoder) -> Result<wgpu::Buffer, wgpu::SurfaceError> {
         // this needs to run every frame, otherwise the buffer will be cleared
         {

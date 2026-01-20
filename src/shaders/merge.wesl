@@ -25,6 +25,7 @@ fn merge(
     let col = gid.x * 2u;
     let labels_idx = row * dims.columns + col;
 
+    // TODO why is P not here -> because it merges with P, since it was the parent.
     if row < dims.rows && col < dims.columns {
         let info = infos[labels_idx];
 
