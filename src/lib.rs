@@ -23,8 +23,6 @@ pub struct CCLState {
     merge_pipeline: wgpu::ComputePipeline,
     merge_bind_group: wgpu::BindGroup,
     final_labeling_pipeline: wgpu::ComputePipeline,
-    label_to_rgba_pipeline: wgpu::ComputePipeline,
-    label_to_rgba_bind_group: wgpu::BindGroup,
     labels_buffer: wgpu::Buffer,
 }
 
@@ -165,44 +163,6 @@ impl CCLState {
                 ],
             });
 
-        let label_to_rgba_bind_group_layout =
-            device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-                label: Some("merge_bind_group_layout"),
-                entries: &[
-                    wgpu::BindGroupLayoutEntry {
-                        binding: 0,
-                        visibility: wgpu::ShaderStages::COMPUTE,
-                        ty: wgpu::BindingType::Buffer {
-                            ty: wgpu::BufferBindingType::Storage { read_only: true },
-                            has_dynamic_offset: false,
-                            min_binding_size: None, 
-                        },
-                        count: None,
-                    },
-                    wgpu::BindGroupLayoutEntry {
-                        binding: 1,
-                        visibility: wgpu::ShaderStages::COMPUTE,
-                        ty: wgpu::BindingType::StorageTexture {
-                            access: wgpu::StorageTextureAccess::WriteOnly,
-                            format: wgpu::TextureFormat::Rgba8Uint,
-                            view_dimension: wgpu::TextureViewDimension::D2,
-                        },
-                        count: None,
-                    },
-                    wgpu::BindGroupLayoutEntry {
-                        binding: 2,
-                        visibility: wgpu::ShaderStages::COMPUTE,
-                        ty: wgpu::BindingType::Buffer {
-                            ty: wgpu::BufferBindingType::Uniform,
-                            has_dynamic_offset: false,
-                            // 16 bytes is a safe minimum for two u32s + padding
-                            min_binding_size: Some(std::num::NonZeroU64::new(16).unwrap()),
-                        },
-                        count: None,
-                    },
-                ],
-            });
-
         let init_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: Some("init_bind_group"),
             layout: &init_bind_group_layout,
@@ -256,25 +216,6 @@ impl CCLState {
             label: Some("merge_bind_group"),
         });
 
-        let label_to_rgba_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-            layout: &label_to_rgba_bind_group_layout,
-            entries: &[
-                wgpu::BindGroupEntry {
-                    binding: 0,
-                    resource: labels_buffer.as_entire_binding(),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 1,
-                    resource: wgpu::BindingResource::TextureView(&texture_bundle.view)
-                },
-                wgpu::BindGroupEntry {
-                    binding: 2,
-                    resource: dims_buffer.as_entire_binding(),
-                },
-            ],
-            label: Some("label_to_rgba_bind_group"),
-        });
-
 
         let shader_string = include_wesl!("init_labeling");
         let shader_source = wgpu::ShaderSource::Wgsl(shader_string.into());
@@ -308,14 +249,6 @@ impl CCLState {
             source: shader_source,
         });
 
-        let shader_string = include_wesl!("label_to_rgba");
-        let shader_source = wgpu::ShaderSource::Wgsl(shader_string.into());
-
-        let label_to_rgba_shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
-            label: Some("Label to RGBA Shader"),
-            source: shader_source,
-        });
-
         let init_pipeline_layout =
             device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                 label: Some("Init pipeline layout"),
@@ -337,12 +270,6 @@ impl CCLState {
                 push_constant_ranges: &[],
             });
 
-        let label_to_rgba_pipeline_layout =
-            device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-                label: Some("label to rgba pipeline layout"),
-                bind_group_layouts: &[ &label_to_rgba_bind_group_layout],
-                push_constant_ranges: &[],
-            });
 
         let init_pipeline = device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
             label: Some("init Pipeline"),
@@ -380,17 +307,6 @@ impl CCLState {
             cache: Default::default(),
         });
 
-        let label_to_rgba_pipeline = device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
-            label: Some("Label to RGBA Pipeline"),
-            layout: Some(&label_to_rgba_pipeline_layout),
-            module: &label_to_rgba_shader,
-            entry_point: "label_to_rgba".into(),
-            compilation_options: Default::default(),
-            cache: Default::default(),
-        });
-
-
-
 
         Ok(Self {
             width,
@@ -402,8 +318,6 @@ impl CCLState {
             merge_pipeline,
             merge_bind_group,
             final_labeling_pipeline,
-            label_to_rgba_pipeline,
-            label_to_rgba_bind_group,
             labels_buffer,
         })
     }
@@ -453,13 +367,6 @@ impl CCLState {
             compute_pass.dispatch_workgroups(
                 self.width/16 + self.width % 16, 
                 self.height/16 + self.height % 16, 
-                1
-            );
-            compute_pass.set_pipeline(&self.label_to_rgba_pipeline);
-            compute_pass.set_bind_group(0, &self.label_to_rgba_bind_group, &[]);
-            compute_pass.dispatch_workgroups(
-                self.width/8 + self.width % 8, 
-                self.height/8 + self.width % 8, 
                 1
             );
         }
