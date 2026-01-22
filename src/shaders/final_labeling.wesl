@@ -10,8 +10,6 @@ struct Dimensions {
 @group(0) @binding(0)
 var<storage, read_write> labels: array<u32>;
 @group(0) @binding(1)
-var<storage, read> infos: array<u32>;
-@group(0) @binding(2)
 var<uniform> dims : Dimensions;
 
 @compute
@@ -25,7 +23,7 @@ fn final_labeling(
     let img_row = dims.rows;
     let img_col = dims.columns;
     let labels_idx = row * img_col + col;
-    let info = infos[labels_idx];
+    let info = labels[labels_idx+1];
 
     if row < img_row && col < img_col {
 

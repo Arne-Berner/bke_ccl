@@ -16,7 +16,14 @@ var in_image: texture_storage_2d<rgba8uint, read>;
 @group(0) @binding(1)
 var<storage, read_write> labels: array<u32>;
 @group(0) @binding(2)
-var<storage, read_write> infos: array<u32>;
+var<uniform> dims : Dimensions;
+
+struct Dimensions {
+    columns: u32,
+    rows: u32,
+    _pad0: u32,
+    _pad1: u32,
+}
 
 fn texel_zero(col: u32, row: u32) -> bool {
     // textureLoad on storage texture requires in-bounds integer coords
@@ -37,9 +44,9 @@ fn init_labeling(
 ){
     let row = gid.y * 2u;
     let col = gid.x * 2u;
-    let img_size = textureDimensions(in_image);
-    let img_row = img_size.y;
-    let img_col = img_size.x;
+    // let img_size = textureDimensions(in_image);
+    let img_row = dims.columns;
+    let img_col = dims.rows;
     let labels_idx = row * img_col + col;
 
     if row < img_row && col < img_col {
@@ -162,6 +169,6 @@ fn init_labeling(
         
         // store parent position in current texel
         labels[labels_idx] = parent_idx;
-        infos[labels_idx] = info;
+        labels[labels_idx+1] = info;
     }
 }

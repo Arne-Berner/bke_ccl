@@ -1,5 +1,3 @@
-import super::union_find;
-
 struct Dimensions {
     columns: u32,
     rows: u32,
@@ -7,9 +5,23 @@ struct Dimensions {
     _pad1: u32,
 }
 
-// group(0) binding(0) is in union-find
+@group(0) @binding(0)
+var<storage, read_write> labels: array<atomic<u32>>;
 @group(0) @binding(1)
 var<uniform> dims : Dimensions;
+
+fn FindAndCompress(n: u32) -> u32 {
+    var idx = n;
+    loop {
+        let parent = atomicLoad(&labels[idx]);
+        if (parent == idx) {
+            break;
+        }
+        idx = parent;
+        atomicStore(&labels[n], idx);
+    }
+    return idx;
+}
 
 @compute
 @workgroup_size(8, 8, 1)
@@ -23,6 +35,6 @@ fn compress(
     let labels_idx = row * dims.columns + col;
 
     if row < dims.rows && col < dims.columns {
-        union_find::FindAndCompress(labels_idx);
+        FindAndCompress(labels_idx);
     }
 }

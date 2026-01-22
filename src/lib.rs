@@ -48,11 +48,6 @@ impl CCLState {
             size: num_bytes_storage,
             usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::COPY_SRC,
             mapped_at_creation: false, });
-        let info_buffer = device.create_buffer(&BufferDescriptor{ 
-            label: Some("Labels Buffer"),
-            size: num_bytes_storage,
-            usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::COPY_SRC,
-            mapped_at_creation: false, });
 
         let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
             label: Some("Clear Encoder"),
@@ -88,14 +83,58 @@ impl CCLState {
                         binding: 2,
                         visibility: wgpu::ShaderStages::COMPUTE,
                         ty: wgpu::BindingType::Buffer {
-                            ty: wgpu::BufferBindingType::Storage { read_only: false },
+                            ty: wgpu::BufferBindingType::Uniform,
                             has_dynamic_offset: false,
-                            min_binding_size: None, // or Some(NonZeroU64::new(labels_size).unwrap())
+                            // 16 bytes is a safe minimum for two u32s + padding
+                            min_binding_size: Some(std::num::NonZeroU64::new(16).unwrap()),
                         },
                         count: None,
                     },
                 ],
             });
+
+        let init_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: Some("init_bind_group"),
+            layout: &init_bind_group_layout,
+            entries: &[
+                wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: wgpu::BindingResource::TextureView(&texture_bundle.view)
+                },
+                wgpu::BindGroupEntry {
+                    binding: 1,
+                    resource: labels_buffer.as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 2,
+                    resource: dims_buffer.as_entire_binding(),
+                },
+            ],
+        });
+
+        let shader_string = include_wesl!("init_labeling");
+        let shader_source = wgpu::ShaderSource::Wgsl(shader_string.into());
+
+        let init_shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+            label: Some("Init Shader"),
+            source: shader_source,
+        });
+
+        let init_pipeline_layout =
+            device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+                label: Some("Init pipeline layout"),
+                bind_group_layouts: &[ &init_bind_group_layout],
+                push_constant_ranges: &[],
+            });
+
+        let init_pipeline = device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
+            label: Some("init Pipeline"),
+            layout: Some(&init_pipeline_layout),
+            module: &init_shader,
+            entry_point: "init_labeling".into(),
+            compilation_options: Default::default(),
+            cache: Default::default(),
+        });
 
         let compress_bind_group_layout =
             device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
@@ -125,6 +164,45 @@ impl CCLState {
                 ],
             });
 
+        let compress_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+            layout: &compress_bind_group_layout,
+            entries: &[
+                wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: labels_buffer.as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 1,
+                    resource: dims_buffer.as_entire_binding(),
+                },
+            ],
+            label: Some("compress_bind_group"),
+        });
+
+        let shader_string = include_wesl!("compress");
+        let shader_source = wgpu::ShaderSource::Wgsl(shader_string.into());
+
+        let compress_shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+            label: Some("Compress Shader"),
+            source: shader_source,
+        });
+
+        let compress_pipeline_layout =
+            device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+                label: Some("compress pipeline layout"),
+                bind_group_layouts: &[ &compress_bind_group_layout],
+                push_constant_ranges: &[],
+            });
+
+        let compress_pipeline = device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
+            label: Some("Compress Pipeline"),
+            layout: Some(&compress_pipeline_layout),
+            module: &compress_shader,
+            entry_point: "compress".into(),
+            compilation_options: Default::default(),
+            cache: Default::default(),
+        });
+
         let merge_bind_group_layout =
             device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
                 label: Some("merge_bind_group_layout"),
@@ -143,16 +221,6 @@ impl CCLState {
                         binding: 1,
                         visibility: wgpu::ShaderStages::COMPUTE,
                         ty: wgpu::BindingType::Buffer {
-                            ty: wgpu::BufferBindingType::Storage { read_only: true },
-                            has_dynamic_offset: false,
-                            min_binding_size: None, // or Some(NonZeroU64::new(labels_size).unwrap())
-                        },
-                        count: None,
-                    },
-                    wgpu::BindGroupLayoutEntry {
-                        binding: 2,
-                        visibility: wgpu::ShaderStages::COMPUTE,
-                        ty: wgpu::BindingType::Buffer {
                             ty: wgpu::BufferBindingType::Uniform,
                             has_dynamic_offset: false,
                             // 16 bytes is a safe minimum for two u32s + padding
@@ -163,40 +231,6 @@ impl CCLState {
                 ],
             });
 
-        let init_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-            label: Some("init_bind_group"),
-            layout: &init_bind_group_layout,
-            entries: &[
-                wgpu::BindGroupEntry {
-                    binding: 0,
-                    resource: wgpu::BindingResource::TextureView(&texture_bundle.view)
-                },
-                wgpu::BindGroupEntry {
-                    binding: 1,
-                    resource: labels_buffer.as_entire_binding(),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 2,
-                    resource: info_buffer.as_entire_binding(),
-                },
-            ],
-        });
-
-        let compress_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-            layout: &compress_bind_group_layout,
-            entries: &[
-                wgpu::BindGroupEntry {
-                    binding: 0,
-                    resource: labels_buffer.as_entire_binding(),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 1,
-                    resource: dims_buffer.as_entire_binding(),
-                },
-            ],
-            label: Some("compress_bind_group"),
-        });
-        
         let merge_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
             layout: &merge_bind_group_layout,
             entries: &[
@@ -206,32 +240,18 @@ impl CCLState {
                 },
                 wgpu::BindGroupEntry {
                     binding: 1,
-                    resource: info_buffer.as_entire_binding(),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 2,
                     resource: dims_buffer.as_entire_binding(),
                 },
             ],
             label: Some("merge_bind_group"),
         });
 
-
-        let shader_string = include_wesl!("init_labeling");
-        let shader_source = wgpu::ShaderSource::Wgsl(shader_string.into());
-
-        let init_shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
-            label: Some("Init Shader"),
-            source: shader_source,
-        });
-
-        let shader_string = include_wesl!("compress");
-        let shader_source = wgpu::ShaderSource::Wgsl(shader_string.into());
-
-        let compress_shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
-            label: Some("Compress Shader"),
-            source: shader_source,
-        });
+        let merge_pipeline_layout =
+            device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+                label: Some("merge pipeline layout"),
+                bind_group_layouts: &[ &merge_bind_group_layout],
+                push_constant_ranges: &[],
+            });
 
         let shader_string = include_wesl!("merge");
         let shader_source = wgpu::ShaderSource::Wgsl(shader_string.into());
@@ -241,54 +261,6 @@ impl CCLState {
             source: shader_source,
         });
 
-        let shader_string = include_wesl!("final_labeling");
-        let shader_source = wgpu::ShaderSource::Wgsl(shader_string.into());
-
-        let final_labeling_shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
-            label: Some("Final Labeling Shader"),
-            source: shader_source,
-        });
-
-        let init_pipeline_layout =
-            device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-                label: Some("Init pipeline layout"),
-                bind_group_layouts: &[ &init_bind_group_layout],
-                push_constant_ranges: &[],
-            });
-
-        let compress_pipeline_layout =
-            device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-                label: Some("compress pipeline layout"),
-                bind_group_layouts: &[ &compress_bind_group_layout],
-                push_constant_ranges: &[],
-            });
-
-        let merge_pipeline_layout =
-            device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-                label: Some("merge pipeline layout"),
-                bind_group_layouts: &[ &merge_bind_group_layout],
-                push_constant_ranges: &[],
-            });
-
-
-        let init_pipeline = device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
-            label: Some("init Pipeline"),
-            layout: Some(&init_pipeline_layout),
-            module: &init_shader,
-            entry_point: "init_labeling".into(),
-            compilation_options: Default::default(),
-            cache: Default::default(),
-        });
-
-        let compress_pipeline = device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
-            label: Some("Compress Pipeline"),
-            layout: Some(&compress_pipeline_layout),
-            module: &compress_shader,
-            entry_point: "compress".into(),
-            compilation_options: Default::default(),
-            cache: Default::default(),
-        });
-
         let merge_pipeline = device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
             label: Some("merge Pipeline"),
             layout: Some(&merge_pipeline_layout),
@@ -296,6 +268,14 @@ impl CCLState {
             entry_point: "merge".into(),
             compilation_options: Default::default(),
             cache: Default::default(),
+        });
+
+        let shader_string = include_wesl!("final_labeling");
+        let shader_source = wgpu::ShaderSource::Wgsl(shader_string.into());
+
+        let final_labeling_shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+            label: Some("Final Labeling Shader"),
+            source: shader_source,
         });
 
         let final_labeling_pipeline = device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {

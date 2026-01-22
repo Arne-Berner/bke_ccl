@@ -1,5 +1,4 @@
 import super::util;
-import super::union_find;
 
 struct Dimensions {
     columns: u32,
@@ -8,11 +7,52 @@ struct Dimensions {
     _pad1: u32,
 }
 
-// group(0) binding(0) is in union-find
+@group(0) @binding(0)
+var<storage, read_write> labels: array<atomic<u32>>;
 @group(0) @binding(1)
-var<storage, read> infos: array<u32>;
-@group(0) @binding(2)
 var<uniform> dims : Dimensions;
+fn Find(n: u32) -> u32 {
+    var idx = n;
+
+    loop {
+        let parent = atomicLoad(&labels[idx]);
+        if (parent == idx) {
+            break;
+        }
+        idx = parent;
+
+    }
+    return idx;
+}
+
+fn Union(a_in: u32, b_in: u32) {
+    var a: u32 = a_in;
+    var b: u32 = b_in;
+    var done: bool = false;
+
+    loop {
+        // Find current roots
+        a = Find(a);
+        b = Find(b);
+
+        if (a < b) {
+            // atomicMin takes i32 and returns the previous i32 value
+            let old = atomicMin(&labels[b], a);
+            if old == b {
+                break;
+            }
+            b = old;
+        } else if (b < a) {
+            let old = atomicMin(&labels[a], b);
+            if old == a {
+                break;
+            }
+            a = old;
+        } else {
+            break;
+        }
+    }
+}
 
 @compute
 @workgroup_size(8, 8, 1)
@@ -26,18 +66,18 @@ fn merge(
     let labels_idx = row * dims.columns + col;
 
     if row < dims.rows && col < dims.columns {
-        let info = infos[labels_idx];
+        let info = labels[labels_idx+1];
 
         if util::HasBits(info, util::Q) {
-            union_find::Union(labels_idx, labels_idx - (dims.columns * 2u));
+            Union(labels_idx, labels_idx - (dims.columns * 2u));
         }
 
         if util::HasBits(info, util::R) {
-            union_find::Union(labels_idx, labels_idx - (dims.columns * 2u) + 2u);
+            Union(labels_idx, labels_idx - (dims.columns * 2u) + 2u);
         }
 
         if util::HasBits(info, util::S) {
-            union_find::Union(labels_idx, labels_idx - 2u);
+            Union(labels_idx, labels_idx - 2u);
         }
     }
 }
