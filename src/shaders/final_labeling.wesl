@@ -23,9 +23,16 @@ fn final_labeling(
     let img_row = dims.rows;
     let img_col = dims.columns;
     let labels_idx = row * img_col + col;
-    let info = labels[labels_idx+1];
 
     if row < img_row && col < img_col {
+        var info = 0u;
+        if col < dims.columns - 1 {
+            info = labels[labels_idx + 1];
+        } else if row < dims.rows - 1 {
+            info = labels[labels_idx + dims.columns + 1];
+        } else {
+            info = labels[labels_idx + 1];
+        }
 
         let label = labels[labels_idx] + 1u;
         if util::HasBits(info, util::A){

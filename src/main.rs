@@ -73,7 +73,7 @@ impl WGPUState {
 
         let mut encoder = self.device.create_command_encoder(&Default::default());
 
-        encoder.copy_buffer_to_buffer(output_buffer, 0, &temp_buffer, 0, output_buffer.size());
+        encoder.copy_buffer_to_buffer(output_buffer, 0, &temp_buffer, 0, output_buffer.size()-4u64);
 
         self.queue.submit([encoder.finish()]);
 

@@ -66,7 +66,14 @@ fn merge(
     let labels_idx = row * dims.columns + col;
 
     if row < dims.rows && col < dims.columns {
-        let info = labels[labels_idx+1];
+        var info = 0u;
+        if col < dims.columns - 1 {
+            info = labels[labels_idx + 1];
+        } else if row < dims.rows - 1 {
+            info = labels[labels_idx + dims.columns + 1];
+        } else {
+            info = labels[labels_idx + 1];
+        }
 
         if util::HasBits(info, util::Q) {
             Union(labels_idx, labels_idx - (dims.columns * 2u));

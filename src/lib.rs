@@ -45,7 +45,7 @@ impl CCLState {
             .expect("The image was too big to create a storage buffer");
         let labels_buffer = device.create_buffer(&BufferDescriptor{ 
             label: Some("Labels Buffer"),
-            size: num_bytes_storage,
+            size: num_bytes_storage+4u64,
             usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::COPY_SRC,
             mapped_at_creation: false, });
 

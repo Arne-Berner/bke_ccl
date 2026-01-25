@@ -8,6 +8,14 @@ const COL_4:u32 = 0x8888u;
 const ROW_1:u32 = 0x000Fu;
 const ROW_2:u32 = 0x00F0u;
 const ROW_3:u32 = 0x0F00u;
+const X1: Info = 1u << 5u;
+const X2: Info = 1u << 6u;
+const X3: Info = 1u << 9u;
+const X4: Info = 1u << 10u;
+
+const A_BLOCK:u32 = COL_1 | COL_2 | COL_3;
+const B_BLOCK:u32 = COL_2 | COL_3 | COL_4;
+const C_BLOCK:u32 = ROW_2 | ROW_3;
 const A: Info = 1u;
 const B: Info = 1u << 1u;
 const C: Info = 1u << 2u;
