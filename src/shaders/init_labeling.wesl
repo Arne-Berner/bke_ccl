@@ -1,7 +1,17 @@
 import super::util;
-// TODO labels could be 1/4 as small, because it labels for the whole 2x2 block
-// what happens, if there is neither a,b,c or d?
-// TODO Can I reuise in_image for labels?
+// TODO using input_img and labels opens up opportunities:
+// 1. I could use the previous columns shifted by 8 bits, to store info for odd numbers
+// this works, because I could output the final image in the input_img
+// 2. I could make the labels buffer 1/4 smaller (not sure if this helps, since the copying is elsewhere)
+// 3. It is agnostic to the input type (I create a buffer from the texture anyway it seems)
+
+// questions: Would it be slower to make input_img read write?
+// questions: Is textureDimensions faster than creating and using an Uniform buffer?
+
+// I could make it work in one buffer, if I added 2 extra fields for each array, or if any array
+// would only have even rows/cols. The extra fields would be the last info+parent
+// since the parent info can't overwrite the label info in this step like before
+
 
 const BIT_P: u32 = 1u;
 const BIT_Q1: u32 = 1u << 1u;
@@ -14,13 +24,14 @@ const BIT_X2: u32 = 1u << 6u;
 const BIT_X3: u32 = 1u << 9u;
 const BIT_X4: u32 = 1u << 10u;
 
-@group(0) @binding(0)
-var in_image: texture_storage_2d<rgba8uint, read>;
-// only r32uint, r32float and r32sint can be read_write natively
-@group(0) @binding(1)
-var<storage, read_write> labels: array<u32>;
-@group(0) @binding(2)
-var<uniform> dims : Dimensions;
+@group(0) @binding(0) var<storage, read> 
+input_img: array<u32>;
+
+@group(0) @binding(1) var<storage, read_write> 
+labels: array<u32>;
+
+@group(0) @binding(2) var<uniform> 
+dims : Dimensions;
 
 struct Dimensions {
     columns: u32,
@@ -29,21 +40,11 @@ struct Dimensions {
     _pad1: u32,
 }
 
-fn texel_zero(col: u32, row: u32) -> bool {
-    // textureLoad on storage texture requires in-bounds integer coords
-    let v = textureLoad(in_image, vec2u(col,row));
-    return v.r == 0u;
+fn none_texel(idx:u32) -> bool {
+    return 0u == input_img[idx];
 }
-fn texel_nonzero(col: u32, row: u32, pos: vec2<i32>) -> bool {
-    let load_pos = vec2i(i32(col), i32(row)) + pos;
-    let v = textureLoad(in_image, load_pos);
-    return v.r != 0u;
-}
-
-fn some_texel(col: u32, row: u32) -> bool {
-    // textureLoad on storage texture requires in-bounds integer coords
-    let v = textureLoad(in_image, vec2u(col,row));
-    return v.r != 0u;
+fn some_texel(idx:u32) -> bool {
+    return 0u != input_img[idx];
 }
 
 @compute
@@ -106,25 +107,25 @@ fn init_labeling(
         // set potential parents and info
         // at this point its just potentially an a
         if util::HasBits(available_pixel, util::X1) {
-            if some_texel(col, row) {
+            if some_texel(labels_idx) {
                 info = util::SetBits(info, (util::A));
                 potential_parents = util::SetBits(potential_parents, util::A_BLOCK);
             }
         }
         if util::HasBits(available_pixel, util::X2) {
-            if some_texel(col+1, row) {
+            if some_texel(labels_idx+1) {
                 info = util::SetBits(info, (util::B));
                 potential_parents = util::SetBits(potential_parents, util::B_BLOCK);
             }
         }
         if util::HasBits(available_pixel, util::X3) {
-            if some_texel(col, row+1) {
+            if some_texel(labels_idx+dims.columns) {
                 info = util::SetBits(info, (util::C));
                 potential_parents = util::SetBits(potential_parents, util::C_BLOCK);
             }
         }
         if util::HasBits(available_pixel, util::X4) {
-            if some_texel(col+1, row+1) {
+            if some_texel(labels_idx+dims.columns+1) {
                 info = util::SetBits(info, (util::D));
             }
         }
@@ -136,21 +137,18 @@ fn init_labeling(
         var parent_flag = false;
 
         // the 2x2 block "P"
-        let p_col = col-1u;
-        let p_row = row-1u;
-        if util::HasBits(potential_parents, BIT_P) && some_texel(p_col, p_row) {
+        let p_idx = labels_idx - dims.columns - 1u;
+        if util::HasBits(potential_parents, BIT_P) && some_texel(p_idx) {
             // uses P as a parent
             parent_idx = labels_idx - (2u * dims.columns + 2u);
             parent_flag = true;
         }
         
         // the 2x2 block "Q"
-        let q1_col = col;
-        let q1_row = row-1u;
-        let q2_col = col+1u;
-        let q2_row = row-1u;
+        let q1_idx = labels_idx - dims.columns;
+        let q2_idx = labels_idx - dims.columns + 1u;
         // TODO the parenthesis are not necessary because && > ||
-        if (util::HasBits(potential_parents, BIT_Q1) && some_texel(q1_col, q1_row)) || (util::HasBits(potential_parents, BIT_Q2) && some_texel(q2_col, q2_row)) {
+        if (util::HasBits(potential_parents, BIT_Q1) && some_texel(q1_idx)) || (util::HasBits(potential_parents, BIT_Q2) && some_texel(q2_idx)) {
             if parent_flag {
                 info = util::SetBits(info, util::Q);
             } else {
@@ -161,10 +159,9 @@ fn init_labeling(
         }
 
         // the 2x2 block "R"
-        let r_col = col+2u;
-        let r_row = row-1u;
+        let r_idx = labels_idx - dims.columns + 2u;
         // P BIT_R should only be set, if there is b
-        if util::HasBits(potential_parents, BIT_R) && some_texel(r_col, r_row) {
+        if util::HasBits(potential_parents, BIT_R) && some_texel(r_idx) {
             if parent_flag {
                 info = util::SetBits(info, util::R);
             } else {
@@ -175,12 +172,10 @@ fn init_labeling(
         }
 
         // the 2x2 block "S"
-        let s1_col = col-1u;
-        let s1_row = row;
-        let s2_col = col-1u;
-        let s2_row = row+1u;
+        let s1_idx = labels_idx - 1u;
+        let s2_idx = labels_idx + dims.columns - 1u;
         // potential partents BIT_S1+BIT_S2 should only be set, if there is a or c
-        if (util::HasBits(potential_parents, BIT_S1) && some_texel(s1_col, s1_row)) || (util::HasBits(potential_parents, BIT_S2) && some_texel(s2_col, s2_row)) {
+        if (util::HasBits(potential_parents, BIT_S1) && some_texel(s1_idx)) || (util::HasBits(potential_parents, BIT_S2) && some_texel(s2_idx)) {
             if parent_flag {
                 info = util::SetBits(info, util::S);
             } else {

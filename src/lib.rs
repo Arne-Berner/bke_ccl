@@ -1,6 +1,6 @@
 pub mod texture;
 
-use wgpu::{BufferDescriptor, util::{BufferInitDescriptor, DeviceExt}};
+use wgpu::{Buffer, BufferDescriptor, util::{BufferInitDescriptor, DeviceExt}};
 use wesl::include_wesl;
 
 
@@ -27,10 +27,7 @@ pub struct CCLState {
 }
 
 impl CCLState {
-    pub fn new(device: &wgpu::Device, queue: &wgpu::Queue, texture_bundle: &texture::TextureUInt) -> anyhow::Result<CCLState> {
-        let texture_size = texture_bundle.texture.size();
-        let width = texture_size.width;
-        let height = texture_size.height;
+    pub fn new(device: &wgpu::Device, queue: &wgpu::Queue, input_buffer: &Buffer, width: u32, height: u32) -> anyhow::Result<CCLState> {
         let dims = Dimensions {columns: width, rows: height, _pad0: 0, _pad1: 0};
         let dims_buffer = device.create_buffer_init(&BufferInitDescriptor{
             label: Some("Dimensions Uniform"),
@@ -38,14 +35,9 @@ impl CCLState {
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
         });
 
-        let num_pixels = width as u64 * height as u64;
-        // every pixel is now rgba<u8> so 32bit
-        let num_bytes_storage = num_pixels
-            .checked_mul(4)
-            .expect("The image was too big to create a storage buffer");
         let labels_buffer = device.create_buffer(&BufferDescriptor{ 
             label: Some("Labels Buffer"),
-            size: num_bytes_storage+4u64,
+            size: input_buffer.size()+4u64,
             usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::COPY_SRC,
             mapped_at_creation: false, });
 
@@ -62,10 +54,10 @@ impl CCLState {
                     wgpu::BindGroupLayoutEntry {
                         binding: 0,
                         visibility: wgpu::ShaderStages::COMPUTE,
-                        ty: wgpu::BindingType::StorageTexture { 
-                            access: wgpu::StorageTextureAccess::ReadOnly, 
-                            format: wgpu::TextureFormat::Rgba8Uint, 
-                            view_dimension: wgpu::TextureViewDimension::D2
+                        ty: wgpu::BindingType::Buffer {
+                            ty: wgpu::BufferBindingType::Storage { read_only: true },
+                            has_dynamic_offset: false,
+                            min_binding_size: None, // or Some(NonZeroU64::new(labels_size).unwrap())
                         },
                         count: None,
                     },
@@ -99,7 +91,7 @@ impl CCLState {
             entries: &[
                 wgpu::BindGroupEntry {
                     binding: 0,
-                    resource: wgpu::BindingResource::TextureView(&texture_bundle.view)
+                    resource: input_buffer.as_entire_binding(),
                 },
                 wgpu::BindGroupEntry {
                     binding: 1,
