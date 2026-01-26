@@ -16,6 +16,7 @@ flume = "0.11.1"
 winit = { version = "0.30", features = ["android-native-activity"] }
 wesl = "0.2.0"
 criterion = { version = "0.8.1", features = ["async_futures"] }
+png = "0.18.0"
 
 [dependencies.image]
 version = "0.24"

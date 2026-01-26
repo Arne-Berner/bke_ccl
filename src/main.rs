@@ -1,16 +1,19 @@
 use pollster::FutureExt;
 
-// mod check_colors;
-// use check_colors::CheckColors;
+mod buffer_png;
+use buffer_png::{BufferBundle, decode};
+
+mod check_colors;
+use check_colors::CheckColors;
 
 mod check_array;
 use check_array::CheckArrays;
 
 fn main() -> anyhow::Result<()> {
     env_logger::init();
-    // let image_bytes = include_bytes!("./test.png");
-    // let state = CheckColors::new(image_bytes).block_on()?;
-    let state = CheckArrays::new().block_on()?;
+    let BufferBundle{buffer, width, height} = decode("./src/test_medium.png");
+    let state = CheckColors::new(&buffer[..buffer.len()], width, height).block_on()?;
+    // let state = CheckArrays::new().block_on()?;
     state.compute().block_on()?;
 
     Ok(())

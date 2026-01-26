@@ -1,10 +1,3 @@
-// Es scheint Felder als parent auszugeben, die keine parents sein können
-// beim 2. hat er 12 angegeben... was richtig ist. Aber das label feld wurde mit 0 überschrieben
-// also dachte er beim 2. block, dass es einen parent nach links gab. WAS DER FALL IST!
-// boa... Aber beim 3. gab es auch einen parent nach links? Hier ist er bei 4 geblieben
-// das heißt er hat mit s1 und s2 noch schwierigkeiten -> check :)
-// das Feld, was komplett umzingelt ist, braucht auch 239, weil P (16) nicht gesetzt wird.
-// Das letzte Feld ist 55, weil es das label vom oberen linken feld im Block bekommt.
 use bke_ccl::*;
 use flume::bounded;
 use std::iter;
