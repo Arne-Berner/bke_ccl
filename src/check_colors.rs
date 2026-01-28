@@ -4,15 +4,18 @@ use bke_ccl::*;
 use flume::bounded;
 use std::iter;
 use image::{ImageBuffer, RgbaImage};
+use wgpu::{Buffer, util::{BufferInitDescriptor, DeviceExt}};
 
 pub struct CheckColors {
-    texture_bundle: texture::TextureUInt,
+    input_buffer: Buffer,
+    width: u32,
+    height: u32,
     device: wgpu::Device,
     queue: wgpu::Queue,
 }
 
 impl CheckColors {
-    pub async fn new(image_bytes:&[u8] ) -> anyhow::Result<CheckColors> {
+    pub async fn new(image_bytes:&[u32], width:u32, height:u32 ) -> anyhow::Result<CheckColors> {
         // The instance is a handle to our GPU
         // BackendBit::PRIMARY => Vulkan + Metal + DX12 + Browser WebGPU
         let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor {
@@ -27,11 +30,16 @@ impl CheckColors {
 
         let (device, queue) = adapter.request_device(&Default::default()).await.unwrap();
 
-        let texture_bundle =
-            texture::TextureUInt::from_bytes(&device, &queue, image_bytes, "in_texture").unwrap();
+        let input_buffer = device.create_buffer_init(&BufferInitDescriptor {
+            label: Some("input"),
+            contents: bytemuck::cast_slice(&image_bytes),
+            usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::STORAGE,
+        });
 
         Ok(Self {
-            texture_bundle,
+            input_buffer,
+            width,
+            height,
             device,
             queue,
         })
@@ -43,7 +51,7 @@ impl CheckColors {
             .create_command_encoder(&wgpu::CommandEncoderDescriptor {
                 label: Some("Render Encoder"),
             });
-        let ccl = CCLState::new(&self.device, &self.queue, &self.texture_bundle).unwrap();
+        let ccl = CCLState::new(&self.device, &self.queue, &self.input_buffer, self.width, self.height).unwrap();
         let output_buffer = ccl.compute(&mut encoder)?;
         self.queue.submit(iter::once(encoder.finish()));
         self.check_colors(&output_buffer).await?;
@@ -51,23 +59,10 @@ impl CheckColors {
         Ok(())
     }
 
-    fn get_num_bytes_storage(&self) -> anyhow::Result<u64> {
-        let texture_size = self.texture_bundle.texture.size();
-        let width = texture_size.width;
-        let height = texture_size.height;
-        let num_pixels = width as u64 * height as u64;
-        let num_bytes_storage = num_pixels
-            .checked_mul(4)
-            .expect("The image was too big to create a storage buffer");
-        Ok(num_bytes_storage)
-    }
-
-
     async fn check_colors(&self, output_buffer: &wgpu::Buffer ) -> anyhow::Result<()> {
-        let num_bytes_storage = self.get_num_bytes_storage().unwrap();
         let temp_buffer = self.device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("temp"),
-            size: num_bytes_storage,
+            size: self.input_buffer.size(),
             usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
             mapped_at_creation: false,
         });
@@ -100,15 +95,23 @@ impl CheckColors {
 
             // Now we have the data on the CPU we can do what ever we want to with it
             let output_data = bytemuck::cast_slice::<_, u32>(&output_buffer_view);
+            println!("{:?}", output_data.len());
 
             // using f64 to accomodate the bigger u32 range
-            let normalized = 255.0 / self.texture_bundle.texture.size().width as f64 / self.texture_bundle.texture.size().height as f64;
+            // 255 / (width*height) would be normalized
+            // 254 will not create any 0 values for last label
+            let normalized = 254.0 / self.width as f64 / self.height as f64;
             let mut rgba_data = Vec::with_capacity(output_data.len() * 4);
             for &label in output_data {
                 // grey scale
-                let r = (label as f64 * normalized) as u8;
-                let g = (label as f64 * normalized) as u8;
-                let b = (label as f64 * normalized) as u8;
+                let mut val = 255u8 - ((label as f64 * normalized) as u8);
+                if label == 0 {
+                    val = 0
+                }
+
+                let r = val;
+                let g = val;
+                let b = val;
                 let a = 255u8; 
 
                 rgba_data.push(r); 
@@ -116,7 +119,7 @@ impl CheckColors {
                 rgba_data.push(b);
                 rgba_data.push(a);
             }
-            let img: RgbaImage = ImageBuffer::from_raw(256, 256, rgba_data).unwrap();
+            let img: RgbaImage = ImageBuffer::from_raw(self.width, self.height, rgba_data).unwrap();
 
             // Save the image
             img.save("output.png")?;
