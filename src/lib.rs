@@ -116,7 +116,7 @@ impl CCLState {
             device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                 label: Some("Init pipeline layout"),
                 bind_group_layouts: &[ &init_bind_group_layout],
-                push_constant_ranges: &[],
+                immediate_size: 0,
             });
 
         let init_pipeline = device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
@@ -183,7 +183,7 @@ impl CCLState {
             device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                 label: Some("compress pipeline layout"),
                 bind_group_layouts: &[ &compress_bind_group_layout],
-                push_constant_ranges: &[],
+                immediate_size: 0,
             });
 
         let compress_pipeline = device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
@@ -242,7 +242,7 @@ impl CCLState {
             device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                 label: Some("merge pipeline layout"),
                 bind_group_layouts: &[ &merge_bind_group_layout],
-                push_constant_ranges: &[],
+                immediate_size: 0,
             });
 
         let shader_string = include_wesl!("merge");
