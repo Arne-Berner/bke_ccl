@@ -305,6 +305,8 @@ impl CCLState {
             compute_pass.set_pipeline(&self.init_pipeline);
             compute_pass.set_bind_group(0, &self.init_bind_group, &[]);
             compute_pass.dispatch_workgroups(
+                // TODO this dispatches too many workgroups, (if width is 3, it dispatches 3 times 
+                // 8x8 workgroups in x direction for 2 columns searched
                 // workgroup / 2 because it is checking 2x2 blocks
                 self.width/16 + self.width % 16, 
                 self.height/16 + self.height % 16, 

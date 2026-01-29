@@ -29,7 +29,7 @@ fn final_labeling(
         if col < dims.columns - 1 {
             info = labels[labels_idx + 1];
         } else if row < dims.rows - 1 {
-            info = labels[labels_idx + dims.columns + 1];
+            info = labels[labels_idx + dims.columns];
         } else {
             info = labels[labels_idx + 1];
         }
