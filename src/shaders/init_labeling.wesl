@@ -190,7 +190,7 @@ fn init_labeling(
             labels[labels_idx+1] = info;
         } else if util::HasBits(available_pixel, BIT_X3) {
             // put into X3
-            labels[labels_idx+ dims.columns + 1] = info;
+            labels[labels_idx+ dims.columns] = info;
         } else {
             // using the extra pixel added in lib
             labels[labels_idx+1] = info;

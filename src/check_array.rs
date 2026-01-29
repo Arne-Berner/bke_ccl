@@ -17,27 +17,33 @@ pub struct CheckArrays {
 
 impl CheckArrays {
     pub async fn new() -> anyhow::Result<CheckArrays> {
-        let image_bytes = vec![
-            1u32, 0u32, 0u32, 0u32, 0u32, 0u32, 0u32, 0u32,
-            0u32, 1u32, 1u32, 1u32, 1u32, 0u32, 0u32, 0u32,
-            0u32, 1u32, 1u32, 1u32, 0u32, 0u32, 0u32, 0u32,
-            0u32, 1u32, 1u32, 1u32, 0u32, 0u32, 0u32, 0u32,
-            0u32, 0u32, 0u32, 0u32, 0u32, 0u32, 0u32, 0u32,
-            0u32, 0u32, 0u32, 0u32, 0u32, 0u32, 0u32, 0u32,
-            0u32, 0u32, 0u32, 0u32, 0u32, 0u32, 0u32, 0u32,
-            0u32, 0u32, 0u32, 0u32, 0u32, 0u32, 0u32, 1u32,
+        let image_bytes: Vec<u32> = vec![
+            1, 0, 0, 0, 0, 
+            0, 1, 1, 1, 1, 
+            0, 1, 1, 1, 0, 
+            0, 1, 1, 1, 0, 
+            0, 0, 0, 0, 0, 
+            0, 0, 0, 0, 0, 
+            0, 0, 0, 0, 0, 
+            0, 0, 0, 0, 0, 
+            0, 0, 0, 0, 0, 
+            0, 0, 0, 0, 0, 
+            0, 0, 0, 0, 1, 
         ];
-        let width = 8u32;
-        let height = 8u32;
-        let expected_array = vec![
-            1u32, 0u32, 0u32, 0u32, 0u32, 0u32, 0u32, 0u32,
-            0u32, 1u32, 1u32, 1u32, 1u32, 0u32, 0u32, 0u32,
-            0u32, 1u32, 1u32, 1u32, 0u32, 0u32, 0u32, 0u32,
-            0u32, 1u32, 1u32, 1u32, 0u32, 0u32, 0u32, 0u32,
-            0u32, 0u32, 0u32, 0u32, 0u32, 0u32, 0u32, 0u32,
-            0u32, 0u32, 0u32, 0u32, 0u32, 0u32, 0u32, 0u32,
-            0u32, 0u32, 0u32, 0u32, 0u32, 0u32, 0u32, 0u32,
-            0u32, 0u32, 0u32, 0u32, 0u32, 0u32, 0u32, 55u32,
+        let width: u32 = 5;
+        let height: u32 = 11;
+        let expected_array: Vec<u32> = vec![
+            1, 0, 0, 0, 0, 
+            0, 1, 1, 1, 1, 
+            0, 1, 1, 1, 0, 
+            0, 1, 1, 1, 0, 
+            0, 0, 0, 0, 0, 
+            0, 0, 0, 0, 0, 
+            0, 0, 0, 0, 0, 
+            0, 0, 0, 0, 0, 
+            0, 0, 0, 0, 0, 
+            0, 0, 0, 0, 0, 
+            0, 0, 0, 0,55, 
         ];
         // The instance is a handle to our GPU
         // BackendBit::PRIMARY => Vulkan + Metal + DX12 + Browser WebGPU
