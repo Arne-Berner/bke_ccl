@@ -26,7 +26,7 @@ impl WGPUState {
 
         let (device, queue) = adapter.request_device(&Default::default()).await.unwrap();
 
-        let image_bytes = include_bytes!("./16x16test.png");
+        let image_bytes = include_bytes!("./mirflickr2.png");
         let texture_bundle =
             texture::TextureUInt::from_bytes(&device, &queue, image_bytes, "in_texture").unwrap();
 
@@ -101,21 +101,34 @@ impl WGPUState {
             let output_data = bytemuck::cast_slice::<_, u32>(&output_buffer_view);
 
             // using f64 to accomodate the bigger u32 range
-            let normalized = 255.0 / self.texture_bundle.texture.size().width as f64 / self.texture_bundle.texture.size().height as f64;
+            // let normalized = 255.0 / self.texture_bundle.texture.size().width as f64 / self.texture_bundle.texture.size().height as f64;
+            let width = self.texture_bundle.texture.width();
+            let height = self.texture_bundle.texture.height();
+            let ratio = (width*height) as f64;
             let mut rgba_data = Vec::with_capacity(output_data.len() * 4);
             for &label in output_data {
                 // grey scale
-                let r = (label as f64 * normalized) as u8;
-                let g = (label as f64 * normalized) as u8;
-                let b = (label as f64 * normalized) as u8;
-                let a = 255u8; 
+                if label == 0 {
+                    rgba_data.push(0); 
+                    rgba_data.push(0);
+                    rgba_data.push(0);
+                    rgba_data.push(0);
+                } else {
+                    let r = (rand11(label as f64 / ratio / 100.0) * 255.0)as u8;
+                    let g = ((rand11(label as f64 / ratio / 100.0 + 0.3))*255.0)as u8;
+                    let b = ((rand11(label as f64 / ratio / 100.0 + 0.6))*255.0)as u8;
+                    // let r = (label as f64 * normalized) as u8;
+                    // let g = (label as f64 * normalized) as u8;
+                    // let b = (label as f64 * normalized) as u8;
+                    let a = 255u8; 
 
-                rgba_data.push(r); 
-                rgba_data.push(g);
-                rgba_data.push(b);
-                rgba_data.push(a);
+                    rgba_data.push(r); 
+                    rgba_data.push(g);
+                    rgba_data.push(b);
+                    rgba_data.push(a);
+                }
             }
-            let img: RgbaImage = ImageBuffer::from_raw(256, 256, rgba_data).unwrap();
+            let img: RgbaImage = ImageBuffer::from_raw(width, height, rgba_data).unwrap();
 
             // Save the image
             img.save("output.png")?;
@@ -125,6 +138,10 @@ impl WGPUState {
         temp_buffer.unmap();
         Ok(())
     }
+}
+
+fn rand11(n: f64) -> f64 {
+    return f64::fract(f64::sin(n) * 43758.5453123);
 }
 
 fn main() -> anyhow::Result<()> {
